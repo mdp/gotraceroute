@@ -1,6 +1,6 @@
 # gotraceroute
 
-*Demo codebase for the quick talk at Yahoo SF's Tech and Beer Talk Friday*
+_Demo codebase for a talk at Yahoo SF's Tech and Beer Talk_
 
 [See the presentation here](https://slides.com/mdp/gotraceroute)
 
