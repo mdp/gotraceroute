@@ -78,7 +78,7 @@ func listenICMP(status chan int) {
 		status <- 0
 		for packet := range packetSource.Packets() {
 			src := packet.NetworkLayer().NetworkFlow().Src()
-			fmt.Printf("Ip: %s ", src)
+			fmt.Printf("ICMP TTL Exceeded from IP: %s ", src)
 			if host, err := net.LookupAddr(src.String()); err == nil {
 				fmt.Printf("Host: %s\n", host[0])
 			}
@@ -109,6 +109,7 @@ func firePacket(dst string, ttl *int) {
 	if _, err := conn.WriteTo(buf.Bytes(), &net.IPAddr{IP: dstip}); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Fired Packet at %s with a ttl of %d\n", dstip, *ttl)
 }
 
 func main() {
@@ -123,7 +124,6 @@ func main() {
 		os.Exit(1)
 	})()
 	for _ = range status {
-		fmt.Println("Firing Packet")
 		firePacket(dst, ttl)
 	}
 }
