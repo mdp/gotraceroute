@@ -101,7 +101,7 @@ func firePacket(dst string, ttl *int) {
 
 	conn, err := net.ListenPacket("ip4:tcp", "0.0.0.0")
 	if err != nil {
-		log.Fatalf("Dialing didn't dial: %s\n", err)
+		log.Fatalf("ListenPacket failed to listen: %s\n", err)
 	}
 	if err = ipv4.NewPacketConn(conn).SetTTL(*ttl); err != nil {
 		log.Fatalf("I had a difficult experience setting the TTL: %s\n", err)
