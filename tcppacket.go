@@ -16,6 +16,20 @@ import (
 	"code.google.com/p/gopacket/layers"
 )
 
+func lookupIPv4(host string) net.IP {
+	dstaddrs, err := net.LookupIP(host)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, addr := range dstaddrs {
+		ipv4 := addr.To4()
+		if ipv4 != nil {
+			return ipv4
+		}
+	}
+	return nil
+}
+
 func localIPPort(dstip net.IP) (net.IP, int) {
 	serverAddr, err := net.ResolveUDPAddr("udp", dstip.String()+":12345")
 	if err != nil {
@@ -54,7 +68,7 @@ func TCPPacket(dstip net.IP, port int16) *layers.TCP {
 	return tcp
 }
 
-func startPCAP(status chan int) {
+func listenICMP(status chan int) {
 	if handle, err := pcap.OpenLive("en0", 65536, false, 1); err != nil {
 		panic(err)
 	} else if err := handle.SetBPFFilter("icmp and icmp[0] == 11"); err != nil { // Type 11 is TTLExceeded
@@ -63,24 +77,18 @@ func startPCAP(status chan int) {
 		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 		status <- 0
 		for packet := range packetSource.Packets() {
-			fmt.Printf("%s", packet)
+			src := packet.NetworkLayer().NetworkFlow().Src()
+			fmt.Printf("Ip: %s ", src)
+			if host, err := net.LookupAddr(src.String()); err == nil {
+				fmt.Printf("Host: %s\n", host[0])
+			}
 			close(status)
 		}
 	}
 }
 
-func firePacket() {
-	var dst string
-	ttl := flag.Int("ttl", 64, "the TTL on the packet")
-	flag.Parse()
-	dst = flag.Args()[0]
-	dstaddrs, err := net.LookupIP(dst)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("TTL: %s", *ttl)
-	// parse the destination host and port from the command line os.Args
-	dstip := dstaddrs[0].To4()
+func firePacket(dst string, ttl *int) {
+	dstip := lookupIPv4(dst)
 	packet := TCPPacket(dstip, 80)
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{
@@ -101,19 +109,21 @@ func firePacket() {
 	if _, err := conn.WriteTo(buf.Bytes(), &net.IPAddr{IP: dstip}); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Sent")
 }
 
 func main() {
+	ttl := flag.Int("ttl", 64, "the TTL on the packet")
+	flag.Parse()
+	dst := flag.Args()[0]
 	status := make(chan int)
-	go startPCAP(status)
+	go listenICMP(status)
 	go (func() {
 		time.Sleep(10 * time.Second)
 		fmt.Println("Timeout")
 		os.Exit(1)
 	})()
 	for _ = range status {
-		fmt.Println("FirePacket")
-		firePacket()
+		fmt.Println("Firing Packet")
+		firePacket(dst, ttl)
 	}
 }
