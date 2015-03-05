@@ -7,6 +7,8 @@ _Demo codebase for a talk at Yahoo SF's Tech and Beer Talk_
 ## Run and install
 
 ```
+# Needs libpcap on linux
+go get
 go build gotraceroute.go
 sudo ./gotraceroute -ttl 5 www.yahoo.com
 ```
