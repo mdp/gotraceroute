@@ -70,12 +70,14 @@ func TCPPacket(dstip net.IP, port int16) *layers.TCP {
 
 func listenICMP(status chan int) {
 	var handle *pcap.Handle
-	interfaces := []string{"en0", "eth0"}
+	interfaces := []string{"eth0", "en0"}
 	for _, i := range interfaces {
 		if h, err := pcap.OpenLive(i, 65536, false, 1); err == nil {
 			handle = h
 			break
 		}
+	}
+	if handle == nil {
 		panic("No valid interface found")
 	}
 	if err := handle.SetBPFFilter("icmp and icmp[0] == 11"); err != nil { // Type 11 is TTLExceeded
