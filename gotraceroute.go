@@ -68,11 +68,27 @@ func TCPPacket(dstip net.IP, port int16) *layers.TCP {
 	return tcp
 }
 
-func listenICMP(status chan int) {
+func handleICMP(handle *pcap.Handle) {
+	if err := handle.SetBPFFilter("icmp and icmp[0] == 11"); err != nil { // Type 11 is TTLExceeded
+		panic(err)
+	} else {
+		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+		for packet := range packetSource.Packets() {
+			src := packet.NetworkLayer().NetworkFlow().Src()
+			fmt.Printf("ICMP TTL Exceeded from IP: %s ", src)
+			if host, err := net.LookupAddr(src.String()); err == nil {
+				fmt.Printf("Host: %s\n", host[0])
+			}
+			os.Exit(0)
+		}
+	}
+}
+
+func listenICMP() *pcap.Handle {
 	var handle *pcap.Handle
 	interfaces := []string{"eth0", "en0"}
 	for _, i := range interfaces {
-		if h, err := pcap.OpenLive(i, 65536, false, 1); err == nil {
+		if h, err := pcap.OpenLive(i, 65536, false, 1000); err == nil {
 			handle = h
 			break
 		}
@@ -80,20 +96,7 @@ func listenICMP(status chan int) {
 	if handle == nil {
 		panic("No valid interface found")
 	}
-	if err := handle.SetBPFFilter("icmp and icmp[0] == 11"); err != nil { // Type 11 is TTLExceeded
-		panic(err)
-	} else {
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		status <- 0
-		for packet := range packetSource.Packets() {
-			src := packet.NetworkLayer().NetworkFlow().Src()
-			fmt.Printf("ICMP TTL Exceeded from IP: %s ", src)
-			if host, err := net.LookupAddr(src.String()); err == nil {
-				fmt.Printf("Host: %s\n", host[0])
-			}
-			close(status)
-		}
-	}
+	return handle
 }
 
 func firePacket(dst string, ttl *int) {
@@ -125,14 +128,10 @@ func main() {
 	ttl := flag.Int("ttl", 64, "the TTL on the packet")
 	flag.Parse()
 	dst := flag.Args()[0]
-	status := make(chan int)
-	go listenICMP(status)
-	go (func() {
-		time.Sleep(10 * time.Second)
-		fmt.Println("Timeout")
-		os.Exit(1)
-	})()
-	for _ = range status {
-		firePacket(dst, ttl)
-	}
+	handle := listenICMP()
+	go handleICMP(handle)
+	firePacket(dst, ttl)
+	time.Sleep(10 * time.Second)
+	fmt.Println("Timeout")
+	os.Exit(1)
 }
